@@ -12,15 +12,34 @@ fn main() -> Result<()> {
 }
 
 fn process_url(url: Url) -> Result<()> {
+    println!("Processing {}", url);
     let response = reqwest::blocking::get(url)?;
-    let dest = Path::new(OUTPUT_DIR).join(&response.url().path()[1..]);
+    let url = response.url().clone();
 
+    let content = response.text()?;
+    let dom = tl::parse(&content, tl::ParserOptions::default())?;
+    for node in dom.nodes().iter() {
+        match node {
+            tl::Node::Tag(tag) if tag.name() == "a" => {
+                let href = match tag.attributes().get("href") {
+                    None => continue,
+                    Some(None) => continue,
+                    Some(Some(href)) => href,
+                };
+
+                println!("about to process {:?}", href);
+            }
+            _ => {}
+        };
+    }
+
+    let dest = Path::new(OUTPUT_DIR).join(&url.path()[1..]);
     if !dest.exists() {
         fs::create_dir_all(&dest)?
     }
 
     let mut file = File::create(dest.join("index.html"))?;
-    file.write_all(&response.bytes()?)?;
+    file.write_all(content.as_bytes())?;
 
     Ok(())
 }
